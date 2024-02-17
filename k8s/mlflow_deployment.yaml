@@ -1,0 +1,89 @@
+# Creating MLflow deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow-deployment
+  template:
+    metadata:
+      labels:
+        app: mlflow-deployment
+    spec:
+      containers:
+        - name: mlflow-deployment
+          image: XXX/mlflow-server:537
+          imagePullPolicy: IfNotPresent #Always
+          args:
+            - --host=0.0.0.0
+            - --port=5000
+            - --backend-store-uri=postgresql://mlflow_user:mlflow_pwd@mlflow-postgres-service:5432/mlflow_db #10.101.82.67:5432/mlflow_db
+            - --default-artifact-root=s3://mlflow/
+            - --workers=2
+          env:
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://mlflow-minio-service:9000/ #http://10.107.116.50:9000/ #http://mlflow-minio.local:9000/
+            - name: AWS_ACCESS_KEY_ID
+              value: "minioadmin" #"minio"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "minioadmin" #"minio123"
+          # - name: MLFLOW_S3_IGNORE_TLS
+          #   value: "true"
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "500m"
+---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: mlflow-service
+# spec:
+#   type: LoadBalancer
+#   ports:
+#     - port: 5000
+#       targetPort: 5000
+#       protocol: TCP
+#       name: http
+#   selector:
+#     app: mlflow-deployment
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-service
+spec:
+  type: NodePort
+  ports:
+    - port: 5000
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  selector:
+    app: mlflow-deployment
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mlflow-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.il/add-base-url: "true"
+spec:
+  rules:
+    - host: mlflow-server.local # A FQDN that describes the host where that rule should be applied
+      http:
+        paths: # A list of paths and handlers for that host
+          # - path: /site # Which path is this rule referring to
+          - backend: # How the ingress will handle the requests
+              service:
+                name: mlflow-service # Which service the request will be forwarded to
+                port:
+                  number: 5000 # Which port in that service
+            path: /
+            pathType: Prefix
