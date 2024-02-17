@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: mlflow-deployment
-          image: XXX/mlflow-server:537
+          image: [DockerHubアカウント名]/mlflow-server:latest
           imagePullPolicy: IfNotPresent #Always
           args:
             - --host=0.0.0.0
